@@ -1,35 +1,46 @@
 import { AnalysisResult } from '../types';
 
 export class InsightService {
-  static generateRecommendations(result: Partial<AnalysisResult>): string[] {
-    const recs: string[] = [];
+  static generateRecommendations(result: Partial<AnalysisResult>): AnalysisResult['recommendations'] {
+    const recs: AnalysisResult['recommendations'] = [];
     const metrics = result.aggregatedMetrics;
-    if (!metrics) return [];
+    const results = result.results;
+    if (!metrics || !results) return [];
 
-    // Rule 1: Visibility Gap
-    const compAvg = Object.values(metrics.competitorDominance).reduce((a, b) => a + b, 0) / 
-                    (Object.keys(metrics.competitorDominance).length || 1);
+    // Rule 1: Visibility Gap in "Best Of" Intents
+    const bestOfResults = results.filter(r => r.intent === 'best_of');
+    const bestOfMentionRate = bestOfResults.reduce((acc, r) => acc + r.metrics.mentionRate, 0) / (bestOfResults.length || 1);
     
-    if (metrics.shareOfVoice < compAvg) {
-      recs.push("Visibility Gap: Your brand is being recommended significantly less than competitors. Consider optimizing your technical documentation and public PR.");
+    if (bestOfMentionRate < 40) {
+      recs.push({
+        type: "Content Strategy",
+        reasoning: `Your brand is missing from ${bestOfResults.length} "Best Of" queries. Models likely lack authoritative comparison data.`,
+        affectedPromptCount: bestOfResults.length,
+        expectedImpact: 'high'
+      });
     }
 
-    // Rule 2: Rank Weakness
-    if (metrics.avgRank && metrics.avgRank > 3) {
-      recs.push("Low Ranking: You appear in lists but often at the bottom. Focus on 'Best of' content and comparison pages to improve authority.");
-    }
-
-    // Rule 3: Low Consensus
+    // Rule 2: Low Confidence / High Variance
     if (metrics.overallConfidence < 0.7) {
-      recs.push("Low Model Consensus: Models are inconsistent in mentioning you. This usually indicates a lack of clear, authoritative data about your brand in the training set.");
+      recs.push({
+        type: "Messaging Consistency",
+        reasoning: "High variance detected across model runs. This indicates inconsistent brand signals in the training data.",
+        affectedPromptCount: results.length,
+        expectedImpact: 'medium'
+      });
     }
 
-    // Rule 4: Competitor Dominance
+    // Rule 3: Competitor Dominance in Citations
     const topComp = Object.entries(metrics.competitorDominance).sort((a, b) => b[1] - a[1])[0];
-    if (topComp && topComp[1] > metrics.shareOfVoice * 2) {
-      recs.push(`Competitor Dominance: ${topComp[0]} is dominating the conversation. Audit their backlink profile and cited sources to understand their advantage.`);
+    if (topComp && topComp[1] > metrics.shareOfVoice * 1.5) {
+      recs.push({
+        type: "Authority Building",
+        reasoning: `${topComp[0]} is cited significantly more often. Audit their backlink profile and comparison page structure.`,
+        affectedPromptCount: results.length,
+        expectedImpact: 'high'
+      });
     }
 
-    return recs.slice(0, 3);
+    return recs;
   }
 }

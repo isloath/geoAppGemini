@@ -25,6 +25,15 @@ async function startServer() {
     }
   });
 
+  app.post("/api/analysis/:id/rerun", async (req, res) => {
+    try {
+      const jobId = await analysisService.rerunJob(req.params.id);
+      res.status(202).json({ id: jobId, status: "pending", message: "Rerun job created." });
+    } catch (error: any) {
+      res.status(404).json({ error: error.message || "Analysis not found" });
+    }
+  });
+
   app.get("/api/analysis/:id", (req, res) => {
     const job = analysisService.getJob(req.params.id);
     if (!job) {

@@ -25,10 +25,12 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: '00000000-0000-0000-0000-000000000000', // Mock project ID
           brand,
           domain,
           category,
           competitors: competitors.split(',').map(c => c.trim()),
+          brandAliases: [],
         }),
       });
       const data = await res.json();
@@ -156,10 +158,14 @@ export default function App() {
           {analysis && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-[#141414]/10 shadow-sm">
                   <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mb-1">Share of Voice</p>
                   <p className="text-4xl font-bold">{analysis.aggregatedMetrics.shareOfVoice.toFixed(1)}%</p>
+                </div>
+                <div className="bg-white p-6 rounded-2xl border border-[#141414]/10 shadow-sm">
+                  <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mb-1">Visibility Score</p>
+                  <p className="text-4xl font-bold">{analysis.aggregatedMetrics.weightedVisibilityScore.toFixed(1)}</p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-[#141414]/10 shadow-sm">
                   <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mb-1">Mention Rate</p>
@@ -177,10 +183,13 @@ export default function App() {
                   <AlertCircle className="w-5 h-5 text-emerald-400" /> Strategic Recommendations
                 </h3>
                 <div className="space-y-4">
-                  {analysis.recommendations.map((rec: string, i: number) => (
+                  {analysis.recommendations.map((rec: any, i: number) => (
                     <div key={i} className="flex gap-4 items-start bg-white/5 p-4 rounded-xl border border-white/10">
                       <div className="w-6 h-6 rounded-full bg-emerald-400/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs font-bold">{i+1}</div>
-                      <p className="text-sm leading-relaxed opacity-90">{rec}</p>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-1">{rec.type} • Impact: {rec.expectedImpact}</p>
+                        <p className="text-sm leading-relaxed opacity-90">{rec.reasoning}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -189,18 +198,25 @@ export default function App() {
               {/* Detailed Results */}
               <section className="bg-white rounded-2xl border border-[#141414]/10 shadow-sm overflow-hidden">
                 <div className="px-8 py-6 border-b border-[#141414]/10 flex items-center justify-between">
-                  <h3 className="font-semibold">Prompt Performance</h3>
-                  <span className="text-xs font-mono opacity-40">N=3 Runs per provider</span>
+                  <h3 className="font-semibold">Intent Performance</h3>
+                  <span className="text-xs font-mono opacity-40">Multi-Layer Confidence</span>
                 </div>
                 <div className="divide-y divide-[#141414]/5">
                   {analysis.results.map((res: any, i: number) => (
                     <div key={i} className="p-8 hover:bg-[#F5F5F4]/50 transition-colors">
                       <div className="flex justify-between items-start mb-4">
-                        <p className="text-sm font-medium italic max-w-lg">"{res.prompt}"</p>
-                        <div className="flex gap-4">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold bg-[#141414]/5 px-2 py-1 rounded mb-2 inline-block">{res.intent}</span>
+                          <p className="text-sm font-medium italic max-w-lg">"{res.promptText}"</p>
+                        </div>
+                        <div className="flex gap-6">
                           <div className="text-right">
-                            <p className="text-[10px] uppercase font-bold opacity-30">Mention Rate</p>
-                            <p className="text-sm font-bold">{res.metrics.mentionRate.toFixed(0)}%</p>
+                            <p className="text-[10px] uppercase font-bold opacity-30">Agreement</p>
+                            <p className="text-sm font-bold">{(res.metrics.agreementRate * 100).toFixed(0)}%</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase font-bold opacity-30">Jaccard</p>
+                            <p className="text-sm font-bold">{(res.metrics.competitorJaccard * 100).toFixed(0)}%</p>
                           </div>
                           <div className="text-right">
                             <p className="text-[10px] uppercase font-bold opacity-30">Confidence</p>
@@ -213,7 +229,7 @@ export default function App() {
                           <div key={j} className={cn(
                             "w-3 h-3 rounded-full",
                             run.parsed.brandMentioned ? "bg-emerald-500" : "bg-red-400"
-                          )} title={`${run.provider}: ${run.parsed.brandMentioned ? 'Mentioned' : 'Not mentioned'}`} />
+                          )} title={`${run.provider}: Rank ${run.parsed.rank || 'N/A'}`} />
                         ))}
                       </div>
                     </div>
