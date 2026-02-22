@@ -1,0 +1,5 @@
+{
+  "name": "AI Visibility Platform",
+  "description": "Enterprise-grade backend for tracking brand visibility and recommendations across LLMs (ChatGPT, Claude, Gemini).",
+  "requestFramePermissions": []
+}
