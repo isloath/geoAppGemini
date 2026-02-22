@@ -41,6 +41,7 @@ export interface LLMResponse {
     brandMentioned: boolean;
     rank?: number;
     competitorsMentioned: string[];
+    competitorRanks: Record<string, number>;
     citations: Citation[];
   };
   model: string;
@@ -93,6 +94,7 @@ export interface AnalysisResult {
     sovCI: [number, number];
     mentionRate: number;
     mentionRateCI: [number, number];
+    totalRuns: number;
     avgRank?: number;
     weightedVisibilityScore: number;
     visibilityBreakdown: {

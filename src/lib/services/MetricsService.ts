@@ -12,10 +12,20 @@ export class MetricsService {
 
     results.forEach(res => {
       res.runs.forEach(run => {
+        // Brand credit
         if (run.parsed.brandMentioned && (run.parsed.rank === undefined || run.parsed.rank <= k)) {
           brandCredits++;
         }
-        const compCredits = run.parsed.competitorsMentioned.length;
+        
+        // Competitor credits (only if in Top-K)
+        let compCredits = 0;
+        run.parsed.competitorsMentioned.forEach(comp => {
+          const rank = run.parsed.competitorRanks[comp];
+          if (rank === undefined || rank <= k) {
+            compCredits++;
+          }
+        });
+        
         totalCredits += (run.parsed.brandMentioned ? 1 : 0) + compCredits;
       });
     });
@@ -122,8 +132,8 @@ export class MetricsService {
     const mentions = runs.filter(r => r.parsed.brandMentioned).length;
     let agreement = Math.max(mentions / runs.length, 1 - (mentions / runs.length));
     
-    // Penalty: Consistent absence is only 0.4 confidence max for agreement component
-    if (mentions === 0) agreement = 0.4;
+    // Penalty: Consistent absence is only 0.3 confidence max for agreement component
+    if (mentions === 0) agreement = 0.3;
 
     // 2. Competitor Jaccard
     const compSets = runs.map(r => new Set(r.parsed.competitorsMentioned));

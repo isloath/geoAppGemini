@@ -29,23 +29,29 @@ export abstract class BaseLLMProvider {
 
     // Pass 2: Structured Extraction (Rank & Citations)
     let rank: number | undefined = undefined;
-    if (brandMentioned) {
-      // Handle numbered lists, bullet points, and prose "first", "second", etc.
-      const lines = raw.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].toLowerCase();
-        if (allBrandNames.some(name => line.includes(name))) {
-          const match = lines[i].match(/^(\d+)[.)]/);
-          if (match) {
-            rank = parseInt(match[1]);
-            break;
-          }
-          // Heuristic for "Top X" lists where rank isn't explicitly numbered
-          if (line.includes('recommend') || line.includes('suggest')) {
-            rank = rank || (i < 5 ? i + 1 : undefined);
-          }
+    const competitorRanks: Record<string, number> = {};
+
+    // Extract ranks for all brands (target + competitors)
+    const lines = raw.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].toLowerCase();
+      const match = lines[i].match(/^(\d+)[.)]/);
+      const listRank = match ? parseInt(match[1]) : undefined;
+
+      // Check target brand
+      if (allBrandNames.some(name => line.includes(name))) {
+        if (listRank) rank = listRank;
+        else if (line.includes('recommend') || line.includes('suggest')) {
+          rank = rank || (i < 5 ? i + 1 : undefined);
         }
       }
+
+      // Check competitors
+      competitors.forEach(comp => {
+        if (line.includes(comp.toLowerCase())) {
+          if (listRank) competitorRanks[comp] = listRank;
+        }
+      });
     }
 
     // Citation Extraction
@@ -57,6 +63,7 @@ export abstract class BaseLLMProvider {
       brandMentioned,
       rank,
       competitorsMentioned,
+      competitorRanks,
       citations,
     };
   }

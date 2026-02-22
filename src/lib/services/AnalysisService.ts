@@ -80,8 +80,12 @@ export class AnalysisService {
               input.brandAliases
             );
             
-            const tokensUsed = Math.ceil(raw.length / 4);
-            const cost = (tokensUsed / 1000) * 0.01; // Simplified cost model
+            const inputTokens = Math.ceil(template.text.length / 4);
+            const outputTokens = Math.ceil(raw.length / 4);
+            const totalTokens = inputTokens + outputTokens;
+            
+            // Blended rate: $4/1M input, $15/1M output
+            const cost = (inputTokens / 1000000) * 4 + (outputTokens / 1000000) * 15;
             totalCost += cost;
 
             runs.push({
@@ -90,7 +94,7 @@ export class AnalysisService {
               model: provider.model,
               provider: provider.name,
               latencyMs: Date.now() - start,
-              tokensUsed,
+              tokensUsed: totalTokens,
               costEstimate: cost,
               params: {
                 temperature,
@@ -142,11 +146,12 @@ export class AnalysisService {
       sovCI: MetricsService.calculateSoVCI(results, input.brand, input.competitors),
       mentionRate: (totalMentions / totalRuns) * 100,
       mentionRateCI: MetricsService.calculateWilsonCI(totalMentions, totalRuns),
+      totalRuns,
       avgRank: MetricsService.calculateAvgRank(results),
       weightedVisibilityScore: visibilityDecomp.score,
       visibilityBreakdown: visibilityDecomp.breakdown,
       competitorDominance: this.calculateCompetitorDominance(results, input.competitors),
-      citationAnalytics: this.calculateCitationAnalytics(results, input.competitors),
+      citationAnalytics: this.calculateCitationAnalytics(results, input.brand, input.competitors),
       overallConfidence: results.reduce((acc, r) => acc + r.metrics.confidence, 0) / results.length,
     };
 
@@ -158,8 +163,8 @@ export class AnalysisService {
       const previousRun = db.prepare("SELECT * FROM analysis_runs WHERE project_id = ? AND id != ? AND status = 'completed' ORDER BY created_at DESC LIMIT 1").get(input.projectId, id) as any;
       if (previousRun && previousRun.metrics_json) {
         const prevMetrics = JSON.parse(previousRun.metrics_json);
-        const prevMentions = Math.round((prevMetrics.mentionRate / 100) * totalRuns); // Approximation
-        const sig = MetricsService.calculateDeltaSignificance(totalMentions, totalRuns, prevMentions, totalRuns);
+        const prevMentions = Math.round((prevMetrics.mentionRate / 100) * (prevMetrics.totalRuns || totalRuns));
+        const sig = MetricsService.calculateDeltaSignificance(totalMentions, totalRuns, prevMentions, prevMetrics.totalRuns || totalRuns);
         deltaSignificance = {
           isSignificant: sig.isSignificant,
           pValue: sig.pValue,
@@ -191,10 +196,11 @@ export class AnalysisService {
     console.log(`[AUDIT] Analysis ${id} completed. Total tokens: ~${Math.ceil(totalCost * 100000)}, Est Cost: $${totalCost.toFixed(4)}`);
   }
 
-  private calculateCitationAnalytics(results: PromptResult[], competitors: string[]) {
+  private calculateCitationAnalytics(results: PromptResult[], brand: string, competitors: string[]) {
     const domainCounts: Record<string, number> = {};
     const compCitationCounts: Record<string, number> = {};
-    competitors.forEach(c => compCitationCounts[c] = 0);
+    const allBrands = [brand, ...competitors];
+    allBrands.forEach(b => compCitationCounts[b] = 0);
     let totalCitations = 0;
 
     results.forEach(res => {
@@ -203,9 +209,9 @@ export class AnalysisService {
           totalCitations++;
           domainCounts[cit.domain] = (domainCounts[cit.domain] || 0) + 1;
           // Heuristic: if citation mentions brand or competitor
-          competitors.forEach(comp => {
-            if (cit.url.toLowerCase().includes(comp.toLowerCase())) {
-              compCitationCounts[comp]++;
+          allBrands.forEach(b => {
+            if (cit.url.toLowerCase().includes(b.toLowerCase())) {
+              compCitationCounts[b]++;
             }
           });
         });
